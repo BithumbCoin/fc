@@ -6,11 +6,44 @@
 #include <fc/log/log_message.hpp>
 #include <fc/optional.hpp>
 #include <exception>
+#include <functional>
+#include <unordered_map>
+#include <boost/core/typeinfo.hpp>
+
 
 namespace fc
 {
    namespace detail { class exception_impl; }
 
+   enum exception_code
+
+   {
+
+       /** for exceptions we threw that don't have an assigned code */
+
+       unspecified_exception_code        = 0,
+       unhandled_exception_code          = 1, ///< for unhandled 3rd party exceptions
+       timeout_exception_code            = 2, ///< timeout exceptions
+       file_not_found_exception_code     = 3,
+       parse_error_exception_code        = 4,
+       invalid_arg_exception_code        = 5,
+       key_not_found_exception_code      = 6,
+       bad_cast_exception_code           = 7,
+       out_of_range_exception_code       = 8,
+       canceled_exception_code           = 9,
+       assert_exception_code             = 10,
+       eof_exception_code                = 11,
+       std_exception_code                = 13,
+       invalid_operation_exception_code  = 14,
+       unknown_host_exception_code       = 15,
+       null_optional_code                = 16,
+       udt_error_code                    = 17,
+       aes_error_code                    = 18,
+       overflow_code                     = 19,
+       underflow_code                    = 20,
+    divide_by_zero_code               = 21
+
+   }; 
    /**
     *  @brief Used to generate a useful error report when an exception is thrown.
     *  @ingroup serializable
