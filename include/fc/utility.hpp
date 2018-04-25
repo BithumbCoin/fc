@@ -1,7 +1,9 @@
+
 #pragma once
 #include <stdint.h>
 #include <new>
-
+#include <vector>
+#include <algorithm>
 #ifdef _MSC_VER
 #pragma warning(disable: 4482) // nonstandard extension used enum Name::Val, standard in C++11
 #define NO_RETURN __declspec(noreturn)
@@ -10,10 +12,10 @@
 #endif
 
 
-namespace std {
-  typedef decltype(sizeof(int)) size_t;
-  typedef decltype(nullptr) nullptr_t;
-}
+//namespace std {
+  //typedef decltype(sizeof(int)) size_t;
+  //typedef decltype(nullptr) nullptr_t;
+//}
 
 namespace fc {
   using std::size_t;
@@ -59,3 +61,6 @@ namespace fc {
     a = fc::move(b);
     b = fc::move(tmp);
   }
+#define LLCONST(constant)   static_cast<int64_t>(constant##ll)
+#define ULLCONST(constant)  static_cast<uint64_t>(constant##ull)
+
