@@ -1,7 +1,7 @@
 #pragma once
 #include <fc/crypto/base64.hpp>
 #include <fc/variant.hpp>
-
+#include <fc/reflect/reflect.hpp>
 namespace fc {
 
   /**
@@ -18,11 +18,19 @@ namespace fc {
     ///@{
     T&       at( size_t pos )      { assert( pos < N); return data[pos]; }
     const T& at( size_t pos )const { assert( pos < N); return data[pos]; }
-    ///@}
+     ///@}
+    T&       operator[]( size_t pos )      { assert( pos < N); return data[pos]; }
+
+    const T& operator[]( size_t pos )const { assert( pos < N); return data[pos]; }
     
     T*           begin()       {  return &data[0]; }
     const T*     begin()const  {  return &data[0]; }
     const T*     end()const    {  return &data[N]; }
+   
+    T*           begin()       {  return &data[0]; }
+    T*           end()         {  return &data[N]; }
+
+
 
     size_t       size()const { return N; }
     
@@ -106,10 +114,19 @@ namespace fc {
     else
         memset( &bi, char(0), sizeof(bi) );
   }
+template<typename T,size_t N> struct get_typename< fc::array<T,N> >  
+  { 
+     static const char* name()  
+     { 
+        static std::string _name = std::string("fc::array<")+std::string(fc::get_typename<T>::name())+","+ fc::to_string(N) + ">";
 
-
+        return _name.c_str();
+     } 
+  }; 
 }
 
+}
+#include <unordered_map>
 #include <fc/crypto/city.hpp>
 namespace std
 {
