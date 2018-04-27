@@ -3,7 +3,7 @@
 #include <fc/io/sstream.hpp>
 #include <fc/exception/exception.hpp>
 #include <fc/log/logger.hpp>
-
+#include <sstream>
 namespace fc
 {
   namespace detail
