@@ -9,3 +9,10 @@ Cryptographic Primitives for a variaty of hashes and encryption algorithms
 Logging Infrastructure
 Wraps many Boost APIs, such as boost::filesystem, boost::thread, and boost::exception to acceleate compiles
 Support for unofficial Boost.Process library.
+
+## What did we do？
+1. We add EOS testing example;
+2. We add bithumb coin testing example;
+3. FC will be a module for bithumb coin；
+
+## Compile steps of the FC, as following:
