@@ -74,7 +74,7 @@ process::~process(){}
 
 iprocess& process::exec( const fc::path& exe, 
                          std::vector<std::string> args, 
-                         const fc::path& work_dir, exec_opts opt  ) 
+                         const fc::path& work_dir, int opt  ) 
 {
 
   my->pctx.work_dir = work_dir.string();
@@ -145,9 +145,12 @@ iprocess& process::exec( const fc::path& exe,
                                   ("message", boost::system::system_error(ec).what())) ) ) );
        }
     });
-  my->_in     = std::make_shared<buffered_ostream>(std::make_shared<fc::asio::ostream<bp::pipe>>(my->_inp));
-  my->_out    = std::make_shared<buffered_istream>(std::make_shared<fc::asio::istream<bp::pipe>>(my->_outp));
-  my->_err    = std::make_shared<buffered_istream>(std::make_shared<fc::asio::istream<bp::pipe>>(my->_errp));
+  if( opt & open_stdin )
+    my->_in     = std::make_shared<buffered_ostream>(std::make_shared<fc::asio::ostream<bp::pipe>>(my->_inp));
+  if( opt & open_stdout )
+    my->_out    = std::make_shared<buffered_istream>(std::make_shared<fc::asio::istream<bp::pipe>>(my->_outp));
+  if( opt & open_stderr )
+    my->_err    = std::make_shared<buffered_istream>(std::make_shared<fc::asio::istream<bp::pipe>>(my->_errp));
   my->_exited = p;
   return *this;
 }
@@ -179,9 +182,9 @@ fc::buffered_istream_ptr process::err_stream() {
   return my->_err;
 }
 
-int process::result() 
+int process::result(const microseconds& timeout /* = microseconds::maximum() */) 
 {
-    return my->_exited.wait();
+    return my->_exited.wait(timeout);
 }
 
 }

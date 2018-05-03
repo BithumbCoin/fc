@@ -14,6 +14,7 @@ class sha1
     operator string()const;
 
     char*    data()const;
+    size_t data_size()const { return 20; }
 
     static sha1 hash( const char* d, uint32_t dlen );
     static sha1 hash( const string& );
@@ -72,8 +73,6 @@ class sha1
 
 namespace std
 {
-    template<typename T> struct hash;
-
     template<>
     struct hash<fc::sha1>
     {

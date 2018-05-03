@@ -15,6 +15,7 @@ class sha512
     operator string()const;
 
     char*    data()const;
+    size_t data_size()const { return 512 / 8; }
 
     static sha512 hash( const char* d, uint32_t dlen );
     static sha512 hash( const string& );
@@ -65,8 +66,13 @@ class sha512
     uint64_t _hash[8]; 
 };
 
+  typedef fc::sha512 uint512;
+
   class variant;
   void to_variant( const sha512& bi, variant& v );
   void from_variant( const variant& v, sha512& bi );
 
 } // fc
+
+#include <fc/reflect/reflect.hpp>
+FC_REFLECT_TYPENAME( fc::sha512 )

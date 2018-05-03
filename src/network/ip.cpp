@@ -1,6 +1,6 @@
 #include <fc/network/ip.hpp>
-#include <fc/crypto/city.hpp>
 #include <fc/variant.hpp>
+#include <fc/exception/exception.hpp>
 #include <boost/asio.hpp>
 #include <boost/lexical_cast.hpp>
 #include <string>
@@ -10,8 +10,13 @@ namespace fc { namespace ip {
   address::address( uint32_t ip )
   :_ip(ip){}
 
-  address::address( const fc::string& s ) {
-    _ip = boost::asio::ip::address_v4::from_string(s.c_str()).to_ulong();
+  address::address( const fc::string& s ) 
+  {
+    try
+    {
+      _ip = boost::asio::ip::address_v4::from_string(s.c_str()).to_ulong();
+    }
+    FC_RETHROW_EXCEPTIONS(error, "Error parsing IP address ${address}", ("address", s))
   }
 
   bool operator==( const address& a, const address& b ) {
@@ -21,13 +26,23 @@ namespace fc { namespace ip {
     return uint32_t(a) != uint32_t(b);
   }
 
-  address& address::operator=( const fc::string& s ) {
-    _ip = boost::asio::ip::address_v4::from_string(s.c_str()).to_ulong();
+  address& address::operator=( const fc::string& s ) 
+  {
+    try
+    {
+      _ip = boost::asio::ip::address_v4::from_string(s.c_str()).to_ulong();
+    }
+    FC_RETHROW_EXCEPTIONS(error, "Error parsing IP address ${address}", ("address", s))
     return *this;
   }
 
-  address::operator fc::string()const {
-    return boost::asio::ip::address_v4(_ip).to_string().c_str();
+  address::operator fc::string()const 
+  {
+    try
+    {
+      return boost::asio::ip::address_v4(_ip).to_string().c_str();
+    }
+    FC_RETHROW_EXCEPTIONS(error, "Error parsing IP address to string")
   }
   address::operator uint32_t()const {
     return _ip;
@@ -56,17 +71,26 @@ namespace fc { namespace ip {
   uint16_t       endpoint::port()const    { return _port; }
   const address& endpoint::get_address()const { return _ip;   }
 
-  endpoint endpoint::from_string( const string& s ) {
-    endpoint ep;
-    const std::string& st = reinterpret_cast<const std::string&>(s);
-    auto pos = st.find(':');
-    ep._ip   = boost::asio::ip::address_v4::from_string(st.substr( 0, pos ) ).to_ulong();
-    ep._port = boost::lexical_cast<uint16_t>( st.substr( pos+1, s.size() ) );
-    return ep;
+  endpoint endpoint::from_string( const string& endpoint_string )
+  {
+    try
+    {
+      endpoint ep;
+      auto pos = endpoint_string.find(':');
+      ep._ip   = boost::asio::ip::address_v4::from_string(endpoint_string.substr( 0, pos ) ).to_ulong();
+      ep._port = boost::lexical_cast<uint16_t>( endpoint_string.substr( pos+1, endpoint_string.size() ) );
+      return ep;
+    }
+    FC_RETHROW_EXCEPTIONS(warn, "error converting string to IP endpoint")
   }
 
-  endpoint::operator string()const {
-    return string(_ip) + ':' + fc::string(boost::lexical_cast<std::string>(_port).c_str());
+  endpoint::operator string()const 
+  {
+    try
+    {
+      return string(_ip) + ':' + fc::string(boost::lexical_cast<std::string>(_port).c_str());
+    }
+    FC_RETHROW_EXCEPTIONS(warn, "error converting IP endpoint to string")
   }
 
   /**
@@ -132,10 +156,3 @@ namespace fc { namespace ip {
   }
 
 } 
-namespace std
-{
-    size_t hash<fc::ip::endpoint>::operator()( const fc::ip::endpoint& e )const
-    {
-        return fc::city_hash64( (char*)&e, sizeof(e) );
-    }
-}

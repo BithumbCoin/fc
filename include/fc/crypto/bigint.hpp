@@ -11,7 +11,7 @@ namespace fc {
     public:
       bigint( const std::vector<char>& bige );
       bigint( const char* bige, uint32_t l );
-      bigint( unsigned long i );
+      bigint(uint64_t value);
       bigint( );
       bigint( const bigint& c );
       bigint( bigint&& c );
@@ -21,7 +21,7 @@ namespace fc {
       bigint& operator = ( const bigint& a );
       bigint& operator = ( bigint&& a );
 
-      operator bool()const;
+      explicit operator bool()const;
 
       bool    is_negative()const;
       int64_t to_int64()const;

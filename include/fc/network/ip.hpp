@@ -2,6 +2,8 @@
 #include <fc/string.hpp>
 #include <fc/crypto/sha1.hpp>
 #include <fc/io/raw_fwd.hpp>
+#include <fc/crypto/city.hpp>
+#include <fc/reflect/reflect.hpp>
 
 namespace fc {
 
@@ -77,6 +79,7 @@ namespace fc {
   void to_variant( const ip::address& var,  variant& vo );
   void from_variant( const variant& var,  ip::address& vo );
 
+
   namespace raw 
   {
     template<typename Stream> 
@@ -109,14 +112,17 @@ namespace fc {
     }
 
   }
-}
+} // namespace fc
+FC_REFLECT_TYPENAME( fc::ip::address ) 
+FC_REFLECT_TYPENAME( fc::ip::endpoint ) 
 namespace std
 {
-    template<typename T> struct hash;
-
     template<>
     struct hash<fc::ip::endpoint>
     {
-       size_t operator()( const fc::ip::endpoint& e )const;
+       size_t operator()( const fc::ip::endpoint& e )const
+       {
+           return fc::city_hash_size_t( (char*)&e, sizeof(e) );
+       }
     };
 }

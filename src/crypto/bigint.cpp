@@ -5,6 +5,7 @@
 #include <fc/crypto/base64.hpp>
 
 #include <fc/exception/exception.hpp>
+#include "../byteswap.hpp"
 
 namespace fc {
       bigint::bigint( const char* bige, uint32_t l ) {
@@ -28,9 +29,10 @@ namespace fc {
         return BN_dup( n );
       }
 
-      bigint::bigint( unsigned long i )
-      :n(BN_new()) {
-        BN_set_word( n, i );
+      bigint::bigint(uint64_t value)
+      {
+        uint64_t big_endian_value = bswap_64(value);
+        n = BN_bin2bn((const unsigned char*)&big_endian_value, sizeof(big_endian_value), NULL);
       }
 
       bigint::bigint( const bigint& c ) {
@@ -47,7 +49,15 @@ namespace fc {
       }
 
       bool bigint::is_negative()const { return BN_is_negative(n); }
-      int64_t bigint::to_int64()const { return BN_get_word(n); }
+      
+      int64_t bigint::to_int64() const
+      {
+        FC_ASSERT(BN_num_bits(n) <= 63);
+        size_t size = BN_num_bytes(n);
+        uint64_t abs_value = 0;
+        BN_bn2bin(n, (unsigned char*)&abs_value + (sizeof(uint64_t) - size));
+        return BN_is_negative(n) ? -(int64_t)bswap_64(abs_value) : bswap_64(abs_value);
+      }
 
       int64_t bigint::log2()const { return BN_num_bits(n); }
       bool bigint::operator < ( const bigint& c )const {

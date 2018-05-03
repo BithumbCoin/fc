@@ -4,5 +4,6 @@
 
 namespace fc
 {
-  std::vector<fc::ip::endpoint> resolve( const std::string& host, uint16_t port );
+  std::vector<boost::asio::ip::udp::endpoint> resolve(boost::asio::io_service& io_service,
+                                                      const std::string& host, uint16_t port);
 }

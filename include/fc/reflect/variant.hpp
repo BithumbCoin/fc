@@ -20,8 +20,19 @@ namespace fc
          template<typename Member, class Class, Member (Class::*member)>
          void operator()( const char* name )const
          {
-            vo(name,(val.*member));
+            this->add(vo,name,(val.*member));
          }
+
+      private:
+         template<typename M>
+         void add( mutable_variant_object& vo, const char* name, const optional<M>& v )const
+         { 
+            if( v.valid() )
+               vo(name,*v);
+         }
+         template<typename M>
+         void add( mutable_variant_object& vo, const char* name, const M& v )const
+         { vo(name,v); }
 
          mutable_variant_object& vo;
          const T& val;
@@ -70,16 +81,15 @@ namespace fc
        template<typename T>
        static inline void to_variant( const T& o, fc::variant& v ) 
        { 
-           v = fc::reflector<T>::to_string(o);
+           v = fc::reflector<T>::to_fc_string(o);
        }
        template<typename T>
        static inline void from_variant( const fc::variant& v, T& o ) 
        { 
            if( v.is_string() )
               o = fc::reflector<T>::from_string( v.get_string().c_str() );
-           else 
-              // throw if invalid int, by attempting to convert to string
-              fc::reflector<T>::to_string( o = static_cast<T>(v.as_int64()) );
+           else
+              o = fc::reflector<T>::from_int( v.as_int64() );
        }
     };
 

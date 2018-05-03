@@ -21,6 +21,7 @@ namespace fc { namespace rpc {
             fc::buffered_ostream_ptr                                              _out;
 
             fc::future<void>                                                      _done;
+            fc::future<void>                                                      _handle_message_future;
             bool                                                                  _eof;
 
             uint64_t                                                              _next_id;
@@ -29,12 +30,13 @@ namespace fc { namespace rpc {
             boost::unordered_map<std::string, json_connection::named_param_method> _named_param_methods;
 
             fc::mutex                                                             _write_mutex;
-            //std::function<void(fc::exception_ptr)>                                _on_close;
+            std::function<void(fc::exception_ptr)>                                _on_close;
 
             logger                                                                _logger;
 
             void send_result( variant id, variant result )
             {
+               ilog( "send: {\"id\": ${i}, \"result\": ${r}}", ("i",id)("r",result) );
                {
                  fc::scoped_lock<fc::mutex> lock(_write_mutex);
                  *_out << "{\"id\":";
@@ -42,11 +44,13 @@ namespace fc { namespace rpc {
                  *_out << ",\"result\":";
                  json::to_stream( *_out, result);
                  *_out << "}\n";
+                 _out->flush();
                }
-               _out->flush();
             }
             void send_error( variant id, fc::exception& e )
             {
+               ilog( "send: {\"id\": ${i}, \"error\":{\"message\": ${what},\"code\":0,\"data\":${data}}}",
+                     ("i",id)("what",e.what())("data", e) );
                {
                  fc::scoped_lock<fc::mutex> lock(_write_mutex);
                  *_out << "{\"id\":";
@@ -56,20 +60,23 @@ namespace fc { namespace rpc {
                  *_out <<",\"code\":0,\"data\":";
                  json::to_stream( *_out, variant(e));
                  *_out << "}}\n";
+                 _out->flush();
                }
-               wlog(  "exception: ${except}", ("except", variant(e)) );
-               _out->flush();
+               //wlog(  "exception: ${except}", ("except", variant(e)) );
             }
 
             void handle_message( const variant_object& obj )
             {
               wlog(  "recv: ${msg}", ("msg", obj) );
+               fc::exception_ptr eptr;
                try 
                {
                   auto m = obj.find("method");
                   auto i = obj.find("id");
                   if( m != obj.end() )
                   {
+                     fc::exception except;
+                     bool exception_caught = false;
                      try
                      {
                         auto p = obj.find("params");
@@ -130,17 +137,15 @@ namespace fc { namespace rpc {
                      }
                      catch ( fc::exception& e )
                      {
-                        if( i != obj.end() )
-                        {
-                           send_error( i->value(), e );
-                        }
-                        else
-                        {
-                           fc_wlog( _logger, "json rpc exception: ${exception}", ("exception",e) );
-                        }
+                        exception_caught = true;
+                        except = e;
                      }
+                     if( exception_caught && i != obj.end() )
+                        send_error( i->value(), except );
+                     else
+                        fc_wlog( _logger, "json rpc exception: ${exception}", ("exception",except) );
                   }
-                  else if( i != obj.end() )
+                  else if( i != obj.end() ) //handle any received JSON response
                   {
                      uint64_t id = i->value().as_int64();
                      auto await = _awaiting.find(id);
@@ -148,19 +153,20 @@ namespace fc { namespace rpc {
                      {
                         auto r = obj.find("result");
                         auto e = obj.find("error");
-                        if( r != obj.end() )
+                        if( r != obj.end() ) //if regular result response
                         {
                            await->second->set_value( r->value() ); 
                         }
-                        else if( e != obj.end() )
+                        else if( e != obj.end() ) //if error response
                         {
+                          fc::exception_ptr eptr;
                           try
                           {
                              auto err = e->value().get_object();
                              auto data = err.find( "data" );
                              if( data != err.end() )
                              {
-                                wlog(  "exception: ${except}", ("except", data->value() ) );
+                                //wlog(  "exception: ${except}", ("except", data->value() ) );
                                 await->second->set_exception( data->value().as<exception>().dynamic_copy_exception() );  
                              }
                              else
@@ -169,8 +175,9 @@ namespace fc { namespace rpc {
                           catch ( fc::exception& e )
                           {
                             elog( "Error parsing exception: ${e}", ("e", e.to_detail_string() ) );
-                            await->second->set_exception( e.dynamic_copy_exception() );
+                            eptr = e.dynamic_copy_exception();
                           }
+                          if( eptr ) await->second->set_exception( eptr );
                         }
                         else // id found without error, result, nor method field
                         {
@@ -187,45 +194,46 @@ namespace fc { namespace rpc {
                {
                   fc_elog( _logger, "json rpc exception: ${exception}", ("exception",e ));
                   elog( "json rpc exception: ${exception}", ("exception",e ));
-                  close(e.dynamic_copy_exception());   
+                  eptr = e.dynamic_copy_exception();
                }
+               if( eptr ) { close(eptr); }
             }
 
             void read_loop()
             {
+               fc::exception_ptr eptr;
                try 
                {
                   fc::string line;
-                  while( true )
+                  while( !_done.canceled() )
                   {
                       variant v = json::from_stream(*_in);
                       ///ilog( "input: ${in}", ("in", v ) );
-                      wlog(  "recv: ${line}", ("line", line) );
-                      fc::async([=](){ handle_message(v.get_object()); });
+                      //wlog(  "recv: ${line}", ("line", line) );
+                      _handle_message_future = fc::async([=](){ handle_message(v.get_object()); }, "json_connection handle_message");
                   } 
                } 
                catch ( eof_exception& eof ) 
                { 
                   _eof = true; 
-               wlog( "close" );
-                  close( eof.dynamic_copy_exception() );
+                  eptr = eof.dynamic_copy_exception();
                }
                catch ( exception& e )
                {
-               wlog( "close" );
-                  close( e.dynamic_copy_exception() );
+                  eptr = e.dynamic_copy_exception();
                }
                catch ( ... )
                {
-               wlog( "close" );
-                  close( fc::exception_ptr(new FC_EXCEPTION( unhandled_exception, "json connection read error" )) );
+                  eptr = fc::exception_ptr(new FC_EXCEPTION( unhandled_exception, "json connection read error" ));
                }
-               wlog( "close" );
+               if( eptr ) close( eptr );
             }
 
             void close( fc::exception_ptr e )
             {
                wlog( "close ${reason}", ("reason", e->to_detail_string() ) );
+               if( _on_close )
+                  _on_close(e);
                for( auto itr = _awaiting.begin(); itr != _awaiting.end(); ++itr )
                {
                   itr->second->set_exception( e->dynamic_copy_exception() );
@@ -240,14 +248,31 @@ namespace fc { namespace rpc {
 
    json_connection::~json_connection()
    {
+      close();
+   }
+
+   fc::future<void> json_connection::exec()
+   {
+      if( my->_done.valid() )
+      {
+         FC_THROW_EXCEPTION( assert_exception, "start should only be called once" );
+      }
+      return my->_done = fc::async( [=](){ my->read_loop(); }, "json_connection read_loop" );
+   }
+
+   void json_connection::close()
+   {
       try
       {
+         if( my->_handle_message_future.valid() && !my->_handle_message_future.ready() )
+            my->_handle_message_future.cancel_and_wait(__FUNCTION__);
          if( my->_done.valid() && !my->_done.ready() )
          {
-            my->_done.cancel();
+            my->_done.cancel("json_connection is destructing");
+            my->_out->close();
             my->_done.wait();
          }
-      } 
+      }
       catch ( fc::canceled_exception& ){} // expected exception
       catch ( fc::eof_exception& ){} // expected exception
       catch ( fc::exception& e )
@@ -257,23 +282,19 @@ namespace fc { namespace rpc {
       }
    }
 
-   fc::future<void> json_connection::exec()
+   void json_connection::set_on_disconnected_callback(std::function<void (exception_ptr)> callback)
    {
-      if( my->_done.valid() )
-      {
-         FC_THROW_EXCEPTION( assert_exception, "start should only be called once" );
-      }
-
-      wlog(  "EXEC!!!\n" );
-      return my->_done = fc::async( [=](){ my->read_loop(); } );
+      my->_on_close = callback;
    }
 
    void json_connection::add_method( const fc::string& name, method m )
    {
+      ilog( "add method ${name}", ("name",name) );
       my->_methods.emplace(std::pair<std::string,method>(name,fc::move(m)));
    }
    void json_connection::add_named_param_method( const fc::string& name, named_param_method m )
    {
+      ilog( "add named param method ${name}", ("name",name) );
       my->_named_param_methods.emplace(std::pair<std::string,named_param_method>(name,fc::move(m)));
    }
    void json_connection::remove_method( const fc::string& name )
@@ -306,8 +327,8 @@ namespace fc { namespace rpc {
         *my->_out << ",\"params\":";
         fc::json::to_stream( *my->_out, named_args );
         *my->_out << "}\n";
+        my->_out->flush();
       }
-      my->_out->flush();
    }
    void json_connection::notice( const fc::string& method )
    {
@@ -316,15 +337,15 @@ namespace fc { namespace rpc {
         *my->_out << "{\"method\":";
         json::to_stream( *my->_out, method );
         *my->_out << "}\n";
+        my->_out->flush();
       }
-      my->_out->flush();
    }
 
 
    future<variant> json_connection::async_call( const fc::string& method, const variants& args )
    {
       auto id = my->_next_id++;
-      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>() );
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
 
       {
          fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
@@ -342,16 +363,15 @@ namespace fc { namespace rpc {
          {
             *my->_out << ",\"params\":[]}\n";
          }
+         my->_out->flush();
       }
-      my->_out->flush();
       return my->_awaiting[id];
    }
 
    future<variant> json_connection::async_call( const fc::string& method, const variant& a1 )
    {
-      ilog( "");
       auto id = my->_next_id++;
-      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>() );
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
 
       {
          fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
@@ -362,15 +382,14 @@ namespace fc { namespace rpc {
          *my->_out << ",\"params\":[";
          fc::json::to_stream( *my->_out, a1 );
          *my->_out << "]}\n";
+         my->_out->flush();
       }
-      my->_out->flush();
       return my->_awaiting[id];
    }
    future<variant> json_connection::async_call( const fc::string& method, const variant& a1, const variant& a2 )
    {
-      ilog( "");
       auto id = my->_next_id++;
-      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>() );
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
 
       {
          fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
@@ -383,15 +402,14 @@ namespace fc { namespace rpc {
          *my->_out << ",";
          fc::json::to_stream( *my->_out, a2 );
          *my->_out << "]}\n";
+         my->_out->flush();
       }
-      my->_out->flush();
       return my->_awaiting[id];
    }
    future<variant> json_connection::async_call( const fc::string& method, const variant& a1, const variant& a2, const variant& a3 )
    {
-      ilog( "");
       auto id = my->_next_id++;
-      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>() );
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
 
       {
          fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
@@ -406,12 +424,250 @@ namespace fc { namespace rpc {
          *my->_out << ",";
          fc::json::to_stream( *my->_out, a3 );
          *my->_out << "]}\n";
+         my->_out->flush();
       }
-      my->_out->flush();
       return my->_awaiting[id];
    }
 
+   future<variant> json_connection::async_call( const fc::string& method, const variant& a1, const variant& a2, const variant& a3, const variant& a4 )
+   {
+      auto id = my->_next_id++;
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
 
+      {
+         fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
+         *my->_out << "{\"id\":";
+         *my->_out << id;
+         *my->_out << ",\"method\":";
+         json::to_stream( *my->_out, method );
+         *my->_out << ",\"params\":[";
+         fc::json::to_stream( *my->_out, a1 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a2 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a3 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a4 );
+         *my->_out << "]}\n";
+         my->_out->flush();
+      }
+      return my->_awaiting[id];
+   }
+
+   future<variant> json_connection::async_call( const fc::string& method, const variant& a1, const variant& a2, const variant& a3, const variant& a4, const variant& a5 )
+   {
+      auto id = my->_next_id++;
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
+
+      {
+         fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
+         *my->_out << "{\"id\":";
+         *my->_out << id;
+         *my->_out << ",\"method\":";
+         json::to_stream( *my->_out, method );
+         *my->_out << ",\"params\":[";
+         fc::json::to_stream( *my->_out, a1 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a2 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a3 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a4 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a5 );
+         *my->_out << "]}\n";
+         my->_out->flush();
+      }
+      return my->_awaiting[id];
+   }
+
+   future<variant> json_connection::async_call( const fc::string& method, const variant& a1, const variant& a2, const variant& a3, const variant& a4, const variant& a5, const variant& a6 )
+   {
+      auto id = my->_next_id++;
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
+
+      {
+         fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
+         *my->_out << "{\"id\":";
+         *my->_out << id;
+         *my->_out << ",\"method\":";
+         json::to_stream( *my->_out, method );
+         *my->_out << ",\"params\":[";
+         fc::json::to_stream( *my->_out, a1 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a2 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a3 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a4 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a5 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a6 );
+         *my->_out << "]}\n";
+         my->_out->flush();
+      }
+      return my->_awaiting[id];
+   }
+   future<variant> json_connection::async_call( const fc::string& method, const variant& a1, const variant& a2, const variant& a3, const variant& a4, const variant& a5, const variant& a6, const variant& a7 )
+   {
+      auto id = my->_next_id++;
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
+
+      {
+         fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
+         *my->_out << "{\"id\":";
+         *my->_out << id;
+         *my->_out << ",\"method\":";
+         json::to_stream( *my->_out, method );
+         *my->_out << ",\"params\":[";
+         fc::json::to_stream( *my->_out, a1 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a2 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a3 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a4 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a5 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a6 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a7 );
+         *my->_out << "]}\n";
+         my->_out->flush();
+      }
+      return my->_awaiting[id];
+   }
+   future<variant> json_connection::async_call( const fc::string& method, 
+                                                const variant& a1, 
+                                                const variant& a2, 
+                                                const variant& a3, 
+                                                const variant& a4, 
+                                                const variant& a5, 
+                                                const variant& a6, 
+                                                const variant& a7, 
+                                                const variant& a8 )
+   {
+      auto id = my->_next_id++;
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
+
+      {
+         fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
+         *my->_out << "{\"id\":";
+         *my->_out << id;
+         *my->_out << ",\"method\":";
+         json::to_stream( *my->_out, method );
+         *my->_out << ",\"params\":[";
+         fc::json::to_stream( *my->_out, a1 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a2 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a3 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a4 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a5 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a6 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a7 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a8 );
+         *my->_out << "]}\n";
+         my->_out->flush();
+      }
+      return my->_awaiting[id];
+   }
+   future<variant> json_connection::async_call( const fc::string& method, 
+                                                const variant& a1, 
+                                                const variant& a2, 
+                                                const variant& a3, 
+                                                const variant& a4, 
+                                                const variant& a5, 
+                                                const variant& a6, 
+                                                const variant& a7, 
+                                                const variant& a8, 
+                                                const variant& a9 )
+   {
+      auto id = my->_next_id++;
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
+
+      {
+         fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
+         *my->_out << "{\"id\":";
+         *my->_out << id;
+         *my->_out << ",\"method\":";
+         json::to_stream( *my->_out, method );
+         *my->_out << ",\"params\":[";
+         fc::json::to_stream( *my->_out, a1 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a2 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a3 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a4 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a5 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a6 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a7 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a8 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a9 );
+         *my->_out << "]}\n";
+         my->_out->flush();
+      }
+      return my->_awaiting[id];
+   }
+   future<variant> json_connection::async_call( const fc::string& method, 
+                                                const variant& a1, 
+                                                const variant& a2, 
+                                                const variant& a3, 
+                                                const variant& a4, 
+                                                const variant& a5, 
+                                                const variant& a6, 
+                                                const variant& a7, 
+                                                const variant& a8, 
+                                                const variant& a9, 
+                                                const variant& a10 )
+   {
+      auto id = my->_next_id++;
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
+
+      {
+         fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
+         *my->_out << "{\"id\":";
+         *my->_out << id;
+         *my->_out << ",\"method\":";
+         json::to_stream( *my->_out, method );
+         *my->_out << ",\"params\":[";
+         fc::json::to_stream( *my->_out, a1 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a2 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a3 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a4 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a5 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a6 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a7 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a8 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a9 );
+         *my->_out << ",";
+         fc::json::to_stream( *my->_out, a10 );
+         *my->_out << "]}\n";
+         my->_out->flush();
+      }
+      return my->_awaiting[id];
+   }
 
    future<variant> json_connection::async_call( const fc::string& method, mutable_variant_object named_args )
    {
@@ -419,9 +675,8 @@ namespace fc { namespace rpc {
    }
    future<variant> json_connection::async_call( const fc::string& method, const variant_object& named_args )
    {
-      wlog( "${method}  ${args}", ("method",method)("args",named_args) );
       auto id = my->_next_id++;
-      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>() );
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
       fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
       {
          *my->_out << "{\"id\":";
@@ -431,14 +686,14 @@ namespace fc { namespace rpc {
          *my->_out << ",\"params\":";
          fc::json::to_stream( *my->_out, named_args );
          *my->_out << "}\n";
+         my->_out->flush();
       }
-      my->_out->flush();
       return my->_awaiting[id];
    }
    future<variant> json_connection::async_call( const fc::string& method )
    {
       auto id = my->_next_id++;
-      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>() );
+      my->_awaiting[id] = fc::promise<variant>::ptr( new fc::promise<variant>("json_connection::async_call") );
       fc::scoped_lock<fc::mutex> lock(my->_write_mutex);
       {
         *my->_out << "{\"id\":";
@@ -446,8 +701,8 @@ namespace fc { namespace rpc {
         *my->_out << ",\"method\":";
          json::to_stream( *my->_out, method );
         *my->_out << "}\n";
+         my->_out->flush();
       }
-      my->_out->flush();
       return my->_awaiting[id];
    }
 

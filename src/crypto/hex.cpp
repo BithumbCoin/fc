@@ -14,8 +14,9 @@ namespace fc {
       return 0;
     }
 
-    fc::string to_hex( const char* d, uint32_t s ) {
-        fc::string r;
+    std::string to_hex( const char* d, uint32_t s ) 
+    {
+        std::string r;
         const char* to_hex="0123456789abcdef";
         uint8_t* c = (uint8_t*)d;
         for( uint32_t i = 0; i < s; ++i )
@@ -37,6 +38,12 @@ namespace fc {
           ++out_pos;
         }
         return out_pos - (uint8_t*)out_data;
+    }
+    std::string to_hex( const std::vector<char>& data )
+    {
+       if( data.size() )
+          return to_hex( data.data(), data.size() );
+       return "";
     }
 
 }

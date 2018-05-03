@@ -68,6 +68,7 @@ namespace fc
         uint64_t      get_line_number()const;
         string        get_method()const;
         string        get_thread_name()const;
+        string        get_task_name()const;
         string        get_host_name()const;
         time_point    get_timestamp()const;
         log_level     get_log_level()const;
@@ -108,7 +109,7 @@ namespace fc
          /**
           *  @param ctx - generally provided using the FC_LOG_CONTEXT(LEVEL) macro 
           */
-         log_message( log_context ctx, const char* format, variant_object args = variant_object() );
+         log_message( log_context ctx, std::string format, variant_object args = variant_object() );
          ~log_message();
 
          log_message( const variant& v );
@@ -131,6 +132,8 @@ namespace fc
 
 
 } // namespace fc
+
+FC_REFLECT_TYPENAME( fc::log_message );
 
 #ifndef __func__
 #define __func__ __FUNCTION__

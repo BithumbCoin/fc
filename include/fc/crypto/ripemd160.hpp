@@ -1,21 +1,24 @@
 #pragma once
+
 #include <fc/fwd.hpp>
-#include <fc/string.hpp>
+#include <fc/io/raw_fwd.hpp>
+#include <fc/reflect/typename.hpp>
 
 namespace fc{
 class sha512;
 class sha256;
 
-class ripemd160 
+class ripemd160
 {
   public:
     ripemd160();
     explicit ripemd160( const string& hex_str );
 
     string str()const;
-    operator string()const;
+    explicit operator string()const;
 
     char*    data()const;
+    size_t data_size()const { return 160/8; }
 
     static ripemd160 hash( const fc::sha512& h );
     static ripemd160 hash( const fc::sha256& h );
@@ -26,7 +29,7 @@ class ripemd160
     static ripemd160 hash( const T& t ) 
     { 
       ripemd160::encoder e; 
-      e << t; 
+      fc::raw::pack(e,t);
       return e.result(); 
     } 
 
@@ -62,22 +65,25 @@ class ripemd160
     friend bool      operator != ( const ripemd160& h1, const ripemd160& h2 );
     friend ripemd160 operator ^  ( const ripemd160& h1, const ripemd160& h2 );
     friend bool      operator >= ( const ripemd160& h1, const ripemd160& h2 );
-    friend bool      operator >  ( const ripemd160& h1, const ripemd160& h2 ); 
-    friend bool      operator <  ( const ripemd160& h1, const ripemd160& h2 ); 
-                             
-    uint32_t _hash[5]; 
+    friend bool      operator >  ( const ripemd160& h1, const ripemd160& h2 );
+    friend bool      operator <  ( const ripemd160& h1, const ripemd160& h2 );
+
+    uint32_t _hash[5];
 };
 
   class variant;
   void to_variant( const ripemd160& bi, variant& v );
   void from_variant( const variant& v, ripemd160& bi );
 
+  typedef ripemd160 uint160_t;
+  typedef ripemd160 uint160;
+
+  template<> struct get_typename<uint160_t>    { static const char* name()  { return "uint160_t";  } };
+
 } // namespace fc
 
 namespace std
 {
-    template<typename T> struct hash;
-
     template<>
     struct hash<fc::ripemd160>
     {

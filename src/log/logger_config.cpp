@@ -5,10 +5,9 @@
 #include <unordered_map>
 #include <string>
 #include <fc/log/console_appender.hpp>
-#include <fc/log/file_appender.hpp>
+#include <fc/log/gelf_appender.hpp>
 #include <fc/reflect/variant.hpp>
 #include <fc/exception/exception.hpp>
-#include <fc/io/stdio.hpp>
 
 namespace fc {
    extern std::unordered_map<std::string,logger>& get_logger_map();
@@ -23,7 +22,7 @@ namespace fc {
    {
       try {
       static bool reg_console_appender = appender::register_appender<console_appender>( "console" );
-      static bool reg_file_appender = appender::register_appender<file_appender>( "file" );
+      static bool reg_gelf_appender = appender::register_appender<gelf_appender>( "gelf" );
       get_logger_map().clear();
       get_appender_map().clear();
 
@@ -36,22 +35,22 @@ namespace fc {
          auto lgr = logger::get( cfg.loggers[i].name );
 
          // TODO: finish configure logger here...
-         if( cfg.loggers[i].parent ) {
+         if( cfg.loggers[i].parent.valid() ) {
             lgr.set_parent( logger::get( *cfg.loggers[i].parent ) );
          }
          lgr.set_name(cfg.loggers[i].name);
-         if( cfg.loggers[i].level ) lgr.set_log_level( *cfg.loggers[i].level );
-         
+         if( cfg.loggers[i].level.valid() ) lgr.set_log_level( *cfg.loggers[i].level );
+
 
          for( auto a = cfg.loggers[i].appenders.begin(); a != cfg.loggers[i].appenders.end(); ++a ){
             auto ap = appender::get( *a );
             if( ap ) { lgr.add_appender(ap); }
          }
-         return reg_console_appender || reg_file_appender;
       }
+      return reg_console_appender || reg_gelf_appender;
       } catch ( exception& e )
       {
-         fc::cerr<<e.to_detail_string()<<"\n";
+         std::cerr<<e.to_detail_string()<<"\n";
       }
       return false;
    }
@@ -65,19 +64,19 @@ namespace fc {
                c.push_back(  mutable_variant_object( "level","warn")("color", "brown") );
                c.push_back(  mutable_variant_object( "level","error")("color", "red") );
 
-      cfg.appenders.push_back( 
-             appender_config( "stderr", "console", 
+      cfg.appenders.push_back(
+             appender_config( "stderr", "console",
                  mutable_variant_object()
                      ( "stream","std_error")
-                     ( "level_colors", c ) 
-                 ) ); 
-      cfg.appenders.push_back( 
-             appender_config( "stdout", "console", 
+                     ( "level_colors", c )
+                 ) );
+      cfg.appenders.push_back(
+             appender_config( "stdout", "console",
                  mutable_variant_object()
-                     ( "stream","std_out") 
-                     ( "level_colors", c ) 
-                 ) ); 
-      
+                     ( "stream","std_out")
+                     ( "level_colors", c )
+                 ) );
+
       logger_config dlc;
       dlc.name = "default";
       dlc.level = log_level::debug;
@@ -85,5 +84,15 @@ namespace fc {
       cfg.loggers.push_back( dlc );
       return cfg;
    }
-   bool do_default_config      = configure_logging( logging_config::default_config() );
+
+   static thread_local std::string thread_name;
+   void set_thread_name( const string& name ) {
+      thread_name = name;
+   }
+   const string& get_thread_name() {
+      static int thread_count = 0;
+      if( thread_name.empty() )
+         thread_name = string("thread-")+fc::to_string(thread_count++);
+      return thread_name;
+   }
 }

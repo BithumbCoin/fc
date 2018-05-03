@@ -37,6 +37,13 @@ namespace fc
          void  set( variant v );
 
          variant&       value();
+
+         friend bool operator == (const entry& a, const entry& b) {
+            return a._key == b._key && a._value == b._value;
+         }
+         friend bool operator != (const entry& a, const entry& b) {
+            return !(a == b);
+         }
              
       private:
          string  _key;
@@ -59,7 +66,7 @@ namespace fc
       const variant& operator[]( const string& key )const;
       const variant& operator[]( const char* key )const;
       size_t size()const;
-      bool   contains( const char* key ) { return find(key) != end(); }
+      bool   contains( const char* key ) const { return find(key) != end(); }
       ///@}
 
       variant_object();
@@ -173,9 +180,17 @@ namespace fc
       template<typename T>
       mutable_variant_object& operator()( string key, T&& var )
       {
-         set(std::move(key), variant( forward<T>(var) ) );
+         set(std::move(key), variant( fc::forward<T>(var) ) );
          return *this;
       }
+      /**
+       * Copy a variant_object into this mutable_variant_object.
+       */
+      mutable_variant_object& operator()( const variant_object& vo );
+      /**
+       * Copy another mutable_variant_object into this mutable_variant_object.
+       */
+      mutable_variant_object& operator()( const mutable_variant_object& mvo );
       ///@}
 
 

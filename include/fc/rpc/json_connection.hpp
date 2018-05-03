@@ -29,6 +29,11 @@ namespace fc { namespace rpc  {
           */
          future<void> exec();
 
+         bool is_open();
+         void close();
+
+         void set_on_disconnected_callback(std::function<void(fc::exception_ptr)> callback);
+
          logger get_logger()const;
          void   set_logger( const logger& l );
 
@@ -76,6 +81,79 @@ namespace fc { namespace rpc  {
                                      const variant& a2, 
                                      const variant& a3 );
 
+         future<variant> async_call( const fc::string& method, 
+                                     const variant& a1, 
+                                     const variant& a2, 
+                                     const variant& a3, 
+                                     const variant& a4 );
+
+         future<variant> async_call( const fc::string& method, 
+                                     const variant& a1, 
+                                     const variant& a2, 
+                                     const variant& a3, 
+                                     const variant& a4, 
+                                     const variant& a5 );
+
+         future<variant> async_call( const fc::string& method, 
+                                     const variant& a1, 
+                                     const variant& a2, 
+                                     const variant& a3, 
+                                     const variant& a4, 
+                                     const variant& a5, 
+                                     const variant& a6 );
+
+         future<variant> async_call( const fc::string& method, 
+                                     const variant& a1, 
+                                     const variant& a2, 
+                                     const variant& a3, 
+                                     const variant& a4, 
+                                     const variant& a5, 
+                                     const variant& a6,
+                                     const variant& a7 
+                                     );
+
+         future<variant> async_call( const fc::string& method, 
+                                     const variant& a1, 
+                                     const variant& a2, 
+                                     const variant& a3, 
+                                     const variant& a4, 
+                                     const variant& a5, 
+                                     const variant& a6,
+                                     const variant& a7, 
+                                     const variant& a8 
+                                     );
+         future<variant> async_call( const fc::string& method, 
+                                     const variant& a1, 
+                                     const variant& a2, 
+                                     const variant& a3, 
+                                     const variant& a4, 
+                                     const variant& a5, 
+                                     const variant& a6,
+                                     const variant& a7, 
+                                     const variant& a8, 
+                                     const variant& a9
+                                     );
+         future<variant> async_call( const fc::string& method, 
+                                     const variant& a1, 
+                                     const variant& a2, 
+                                     const variant& a3, 
+                                     const variant& a4, 
+                                     const variant& a5, 
+                                     const variant& a6,
+                                     const variant& a7, 
+                                     const variant& a8, 
+                                     const variant& a9, 
+                                     const variant& a10 
+                                     );
+
+         template<typename Result>
+         Result call( const fc::string& method,
+                               const variants& args,
+                               microseconds timeout = microseconds::maximum())
+         {
+             return async_call( method, args ).wait(timeout).as<Result>();
+         }
+
          template<typename Result>
          Result call( const fc::string& method, 
                                const variant& a1, 
@@ -84,6 +162,103 @@ namespace fc { namespace rpc  {
                                microseconds timeout = microseconds::maximum())
          {
             return async_call( method, a1, a2, a3 ).wait(timeout).as<Result>();
+         }
+
+         template<typename Result>
+         Result call( const fc::string& method, 
+                               const variant& a1, 
+                               const variant& a2, 
+                               const variant& a3,
+                               const variant& a4,
+                               microseconds timeout = microseconds::maximum())
+         {
+            return async_call( method, a1, a2, a3, a4).wait(timeout).as<Result>();
+         }
+
+         template<typename Result>
+         Result call( const fc::string& method, 
+                               const variant& a1, 
+                               const variant& a2, 
+                               const variant& a3,
+                               const variant& a4,
+                               const variant& a5,
+                               microseconds timeout = microseconds::maximum())
+         {
+            return async_call( method, a1, a2, a3, a4, a5).wait(timeout).as<Result>();
+         }
+
+         template<typename Result>
+         Result call( const fc::string& method, 
+                               const variant& a1, 
+                               const variant& a2, 
+                               const variant& a3,
+                               const variant& a4,
+                               const variant& a5,
+                               const variant& a6,
+                               microseconds timeout = microseconds::maximum())
+         {
+            return async_call( method, a1, a2, a3, a4, a5, a6).wait(timeout).as<Result>();
+         }
+         template<typename Result>
+         Result call( const fc::string& method, 
+                               const variant& a1, 
+                               const variant& a2, 
+                               const variant& a3,
+                               const variant& a4,
+                               const variant& a5,
+                               const variant& a6,
+                               const variant& a7,
+                               microseconds timeout = microseconds::maximum())
+         {
+            return async_call( method, a1, a2, a3, a4, a5, a6, a7).wait(timeout).as<Result>();
+         }
+
+         template<typename Result>
+         Result call( const fc::string& method, 
+                               const variant& a1, 
+                               const variant& a2, 
+                               const variant& a3,
+                               const variant& a4,
+                               const variant& a5,
+                               const variant& a6,
+                               const variant& a7,
+                               const variant& a8,
+                               microseconds timeout = microseconds::maximum())
+         {
+            return async_call( method, a1, a2, a3, a4, a5, a6, a7, a8).wait(timeout).as<Result>();
+         }
+
+         template<typename Result>
+         Result call( const fc::string& method, 
+                               const variant& a1, 
+                               const variant& a2, 
+                               const variant& a3,
+                               const variant& a4,
+                               const variant& a5,
+                               const variant& a6,
+                               const variant& a7,
+                               const variant& a8,
+                               const variant& a9,
+                               microseconds timeout = microseconds::maximum())
+         {
+            return async_call( method, a1, a2, a3, a4, a5, a6, a7, a8, a9).wait(timeout).as<Result>();
+         }
+
+         template<typename Result>
+         Result call( const fc::string& method, 
+                               const variant& a1, 
+                               const variant& a2, 
+                               const variant& a3,
+                               const variant& a4,
+                               const variant& a5,
+                               const variant& a6,
+                               const variant& a7,
+                               const variant& a8,
+                               const variant& a9,
+                               const variant& a10,
+                               microseconds timeout = microseconds::maximum())
+         {
+            return async_call( method, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10).wait(timeout).as<Result>();
          }
 
          template<typename Result>

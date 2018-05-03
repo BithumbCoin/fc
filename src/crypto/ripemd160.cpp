@@ -8,6 +8,7 @@
 #include <fc/crypto/sha256.hpp>
 #include <fc/variant.hpp>
 #include <vector>
+#include "_digest_common.hpp"
 
 namespace fc 
 {
@@ -26,6 +27,10 @@ char* ripemd160::data()const { return (char*)&_hash[0]; }
 
 
 struct ripemd160::encoder::impl {
+   impl()
+   {
+        memset( (char*)&ctx, 0, sizeof(ctx) );
+   }
    RIPEMD160_CTX ctx;
 };
 
@@ -65,11 +70,7 @@ void ripemd160::encoder::reset() {
 
 ripemd160 operator << ( const ripemd160& h1, uint32_t i ) {
   ripemd160 result;
-  uint8_t* r = (uint8_t*)result._hash;
-  uint8_t* s = (uint8_t*)h1._hash;
-  for( uint32_t p = 0; p < sizeof(h1._hash)-1; ++p )
-      r[p] = s[p] << i | (s[p+1]>>(8-i));
-  r[19] = s[19] << i;
+  fc::detail::shift_l( h1.data(), result.data(), result.data_size(), i );
   return result;
 }
 ripemd160 operator ^ ( const ripemd160& h1, const ripemd160& h2 ) {

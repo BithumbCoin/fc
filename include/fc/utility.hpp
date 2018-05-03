@@ -1,9 +1,9 @@
-
 #pragma once
 #include <stdint.h>
+#include <algorithm>
 #include <new>
 #include <vector>
-#include <algorithm>
+
 #ifdef _MSC_VER
 #pragma warning(disable: 4482) // nonstandard extension used enum Name::Val, standard in C++11
 #define NO_RETURN __declspec(noreturn)
@@ -13,8 +13,8 @@
 
 
 //namespace std {
-  //typedef decltype(sizeof(int)) size_t;
-  //typedef decltype(nullptr) nullptr_t;
+//  typedef decltype(sizeof(int)) size_t;
+//  typedef decltype(nullptr) nullptr_t;
 //}
 
 namespace fc {
@@ -53,7 +53,44 @@ namespace fc {
   template<typename T>
   const T& min( const T& a, const T& b ) { return a < b ? a: b; }
 
+  constexpr size_t const_strlen(const char* str) {
+     int i = 0;
+     while(*(str+i) != '\0')
+        i++;
+     return i; 
+  }
+
+
+  template<typename T>
+  void move_append(std::vector<T> &dest, std::vector<T>&& src ) {
+    if (src.empty()) {
+      return;
+    } else if (dest.empty()) {
+      dest = std::move(src);
+    } else {
+      dest.insert(std::end(dest), std::make_move_iterator(std::begin(src)), std::make_move_iterator(std::end(src)));
+    }
+  }
+
+  template<typename T>
+  void copy_append(std::vector<T> &dest, const std::vector<T>& src ) {
+    if (src.empty()) {
+      return;
+    } else {
+      dest.insert(std::end(dest), std::begin(src), std::end(src));
+    }
+  }
+
+  template<typename T>
+  void deduplicate( std::vector<T>& entries ) {
+    if (entries.size() > 1) {
+      std::sort( entries.begin(), entries.end() );
+      auto itr = std::unique( entries.begin(), entries.end() );
+      entries.erase( itr, entries.end() );
+    }
+  }
 }
+
   // outside of namespace fc becuase of VC++ conflict with std::swap
   template<typename T>
   void fc_swap( T& a, T& b ) {     
@@ -61,6 +98,7 @@ namespace fc {
     a = fc::move(b);
     b = fc::move(tmp);
   }
+
 #define LLCONST(constant)   static_cast<int64_t>(constant##ll)
 #define ULLCONST(constant)  static_cast<uint64_t>(constant##ull)
 

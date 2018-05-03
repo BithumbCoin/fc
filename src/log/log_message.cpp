@@ -2,14 +2,12 @@
 #include <fc/exception/exception.hpp>
 #include <fc/variant.hpp>
 #include <fc/time.hpp>
-#include <fc/thread/thread.hpp>
-#include <fc/thread/task.hpp>
 #include <fc/filesystem.hpp>
-#include <fc/io/stdio.hpp>
 #include <fc/io/json.hpp>
 
 namespace fc
 {
+   const string& get_thread_name();
    namespace detail
    {
       class log_context_impl
@@ -20,6 +18,7 @@ namespace fc
             uint64_t     line;
             string       method;
             string       thread_name;
+            string       task_name;
             string       hostname;
             string       context;
             time_point   timestamp;
@@ -52,7 +51,7 @@ namespace fc
       my->line        = line;
       my->method      = method;
       my->timestamp   = time_point::now();
-      my->thread_name = fc::thread::current().name();
+      my->thread_name = fc::get_thread_name();
    }
 
    log_context::log_context( const variant& v )
@@ -63,8 +62,10 @@ namespace fc
        my->file         = obj["file"].as_string();
        my->line         = obj["line"].as_uint64();
        my->method       = obj["method"].as_string();
-       my->method       = obj["hostname"].as_string();
+       my->hostname     = obj["hostname"].as_string();
        my->thread_name  = obj["thread_name"].as_string();
+       if (obj.contains("task_name"))
+         my->task_name    = obj["task_name"].as_string();
        my->timestamp    = obj["timestamp"].as<time_point>();
        if( obj.contains( "context" ) )
            my->context      = obj["context"].as<string>();
@@ -78,7 +79,9 @@ namespace fc
 
    void log_context::append_context( const fc::string& s )
    {
-        my->context += "->" + s;
+        if (!my->context.empty())
+          my->context += " -> ";
+        my->context += s;
    }
 
    log_context::~log_context(){}
@@ -149,9 +152,11 @@ namespace fc
    uint64_t   log_context::get_line_number()const { return my->line; }
    string     log_context::get_method()const     { return my->method; }
    string     log_context::get_thread_name()const { return my->thread_name; }
+   string     log_context::get_task_name()const { return my->task_name; }
    string     log_context::get_host_name()const   { return my->hostname; }
    time_point  log_context::get_timestamp()const  { return my->timestamp; }
    log_level  log_context::get_log_level()const{ return my->level;   }
+   string     log_context::get_context()const   { return my->context; }
 
 
    variant log_context::to_variant()const
@@ -175,10 +180,10 @@ namespace fc
    log_message::log_message()
    :my( std::make_shared<detail::log_message_impl>() ){}
 
-   log_message::log_message( log_context ctx, const char* format, variant_object args )
+   log_message::log_message( log_context ctx, std::string format, variant_object args )
    :my( std::make_shared<detail::log_message_impl>(std::move(ctx)) )
    {
-      my->format  = format;
+      my->format  = std::move(format);
       my->args    = std::move(args);
    }
 
