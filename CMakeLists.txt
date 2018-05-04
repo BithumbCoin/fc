@@ -1,6 +1,7 @@
 # Setup module path to make visible used CMake extensions
 #INCLUDE(GetPrerequisites)
 #INCLUDE(VersionMacros)
+add_compile_options(-std=c++14)
 
 SET( CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules;${CMAKE_MODULE_PATH}" )
 SET( CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMakeModules;${CMAKE_MODULE_PATH}" )
