@@ -1,4 +1,5 @@
 # Setup module path to make visible used CMake extensions
+cmake_minimum_required(VERSION 3.10)
 #INCLUDE(GetPrerequisites)
 #INCLUDE(VersionMacros)
 
