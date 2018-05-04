@@ -195,7 +195,7 @@ target_include_directories(fc
 IF(NOT WIN32)
   set(LINK_USR_LOCAL_LIB -L/usr/local/lib)
 ENDIF()
-target_link_libraries( fc PUBLIC ${LINK_USR_LOCAL_LIB} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES} ${PLATFORM_SPECIFIC_LIBS} ${RPCRT4} ${CMAKE_DL_LIBS} ${rt_library} ${readline_libraries} ${ECC_LIB} )
+target_link_libraries( fc PUBLIC ${LINK_USR_LOCAL_LIB} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES} ${PLATFORM_SPECIFIC_LIBS} ${RPCRT4} ${CMAKE_DL_LIBS} ${rt_library} ${readline_libraries} ${ECC_LIB} ${pthread_library})
 
 
 SET(OPENSSL_CONF_TARGET )
@@ -205,7 +205,7 @@ ELSE()
   SET (OPENSSL_CONF_TARGET ${CMAKE_CURRENT_BINARY_DIR})
 ENDIF()
 
-#add_subdirectory( tests )
-add_executable( test_compress tests/compress.cpp )
-target_link_libraries( test_compress fc ${pthread_library} )
+add_subdirectory( tests )
+#add_executable( test_compress tests/compress.cpp )
+#target_link_libraries( test_compress fc ${pthread_library} )
 
