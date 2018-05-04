@@ -1,8 +1,9 @@
+cmake_minimum_required( VERSION 3.5 )
 # Setup module path to make visible used CMake extensions
 #INCLUDE(GetPrerequisites)
 #INCLUDE(VersionMacros)
 add_compile_options(-std=c++14)
-
+project(fc)
 SET( CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules;${CMAKE_MODULE_PATH}" )
 SET( CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMakeModules;${CMAKE_MODULE_PATH}" )
 
@@ -57,6 +58,26 @@ IF(NOT "$ENV{OPENSSL_ROOT_DIR}" STREQUAL "")
   set(OPENSSL_INCLUDE_DIR ${OPENSSL_ROOT_DIR}/include)
   message(STATUS "Setting up OpenSSL root and include vars to ${OPENSSL_ROOT_DIR}, ${OPENSSL_INCLUDE_DIR}")
 ENDIF()
+
+SET( Boost_USE_STATIC_LIBS ON CACHE STRING "ON or OFF" )
+IF( WIN32 )
+  SET(BOOST_ROOT $ENV{BOOST_ROOT})
+  set(Boost_USE_MULTITHREADED ON)
+  set(BOOST_ALL_DYN_LINK OFF) # force dynamic linking for all libraries
+ENDIF(WIN32)
+FIND_PACKAGE(Boost 1.66 REQUIRED COMPONENTS
+    thread
+    date_time
+    filesystem
+    system
+    program_options
+    signals
+    serialization
+    chrono
+    unit_test_framework
+    context
+    locale
+    iostreams)
 
 find_package(OpenSSL REQUIRED)
 
@@ -184,4 +205,7 @@ ELSE()
   SET (OPENSSL_CONF_TARGET ${CMAKE_CURRENT_BINARY_DIR})
 ENDIF()
 
-add_subdirectory( tests )
+#add_subdirectory( tests )
+add_executable( test_compress tests/compress.cpp )
+target_link_libraries( test_compress fc ${pthread_library} )
+

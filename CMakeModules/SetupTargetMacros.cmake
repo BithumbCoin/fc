@@ -138,7 +138,10 @@ MACRO( SETUP_LIBRARY target )
     enable_unity_build( ${target} sources )
     ENDIF( UNITY_BUILD )
 
-    # Add the library.
+    IF(COMMAND cmake_policy)
+      cmake_policy(SET CMP0003 NEW)
+    ENDIF(COMMAND cmake_policy)    # Add the library.
+    
     ADD_LIBRARY( "${target}" ${library_type} ${sources} ${moc_sources} )
 
     # Setup the debug_postfix.
