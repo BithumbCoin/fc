@@ -15,4 +15,11 @@ Support for unofficial Boost.Process library.
 2. We add bithumb coin testing example;
 3. FC will be a module for bithumb coin；
 
-## Compile steps of the FC, as following:
+## Compile environment:
+ubuntu 16.04,cmake 3.11, boost 1.66
+
+## Compile steps:
+1. cd fc, and mkdir build
+2. cmake ..
+3. make(In order to compile fc under c++14 standard, we need add add_compile_options(-std=c++14))
+
