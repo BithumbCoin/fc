@@ -184,4 +184,4 @@ ELSE()
   SET (OPENSSL_CONF_TARGET ${CMAKE_CURRENT_BINARY_DIR})
 ENDIF()
 
-add_subdirectory( test )
+add_subdirectory( tests )
